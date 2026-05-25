@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Plantas Medicinales</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Bootstrap 5 CDN -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <link href="https://cdn.jsdelivr.net/npm/@n8n/chat/dist/style.css" rel="stylesheet">
+    <!-- Leaflet JS (mapas) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+  <div class="container py-4">
+    <h1 class="mb-4 text-center" style="color:#0C2142;">Plantas Medicinales</h1>
+    <div id="plantas-section">
+      <div class="mb-3">
+        <input type="text" id="buscador-plantas" class="form-control" placeholder="Buscar planta por nombre o propiedad...">
+      </div>
+      <div class="row" id="plantas-list"></div>
+      <nav>
+        <ul class="pagination pagination-pills justify-content-end my-3" id="plantas-pagination"></ul>
+      </nav>
+    <div class="modal fade" id="plantaModal" tabindex="-1" aria-labelledby="plantaModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+              <h5 class="modal-title" id="plantaModalLabel">Planta</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+          </div>
+          <div class="modal-body">
+              <ul class="nav nav-tabs mb-3" id="modalTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                  <button class="nav-link active" id="tab-detalles" data-bs-toggle="tab" data-bs-target="#pane-detalles" type="button" role="tab">Detalles</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                  <button class="nav-link" id="tab-formulas" data-bs-toggle="tab" data-bs-target="#pane-formulas" type="button" role="tab">Fórmulas</button>
+                </li>
+                  <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="tab-mapa" data-bs-toggle="tab" data-bs-target="#pane-mapa" type="button" role="tab">Mapa</button>
+                  </li>
+              </ul>
+              <div class="tab-content">
+                <div class="tab-pane fade show active" id="pane-detalles" role="tabpanel">
+                  <div id="modal-detalles"></div>
+                </div>
+                <div class="tab-pane fade" id="pane-formulas" role="tabpanel">
+                  <div id="modal-formulas"></div>
+                </div>
+                  <div class="tab-pane fade" id="pane-mapa" role="tabpanel">
+                    <div id="modal-mapa" style="height:420px;"></div>
+                  </div>
+              </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal fade" id="chatPlantasModal" tabindex="-1" aria-labelledby="chatPlantasModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="chatPlantasModalLabel">Plantas recomendadas</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+          </div>
+          <div class="modal-body">
+            <p id="chat-plantas-resumen" class="small text-muted d-none"></p>
+            <div class="row g-3" id="chat-plantas-list"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script type="module">
+    import { createChat } from "https://cdn.jsdelivr.net/npm/@n8n/chat/dist/chat.bundle.es.js";
+    // Enlace real de AppScript para obtener los datos
+    const DATA_URL = 'https://script.google.com/macros/s/AKfycbwJ-Ms9QPBTgXfm1tdHrMay6QYNJJoCid6E63iwddpNDgGdxq_mUJG7cFyF1FTWVJr0fw/exec';
+
+
+    // Obtiene datos del cache (localStorage) si existen
+    function getCachedData() {
+      const cached = localStorage.getItem('plantasData');
+      if (!cached) return null;
+      try {
+        return JSON.parse(cached);
+      } catch {
+        return null;
+      }
+    }
+
+    // Guarda datos en cache
+    function setCachedData(data) {
+      localStorage.setItem('plantasData', JSON.stringify(data));
+    }
+
+    // Descarga datos desde el servidor
+    async function fetchData() {
+      const res = await fetch(DATA_URL);
+      return await res.json();
+    }
+
+    // Guardar los datos globalmente para acceso en el modal
+    let GLOBAL_DATA = { plantas: [], remedios: [], fuentes: [] };
+
+    // Paginación de plantas
+    let plantasCurrentPage = 1;
+    const plantasPerPage = 6;
+    let plantasFiltradasGlobal = [];
+
+    function renderPlantas(plantas, page = 1) {
+      const cont = document.getElementById('plantas-list');
+      cont.innerHTML = '';
+      if (!plantas) plantas = [];
+      plantasFiltradasGlobal = plantas;
+      plantasCurrentPage = page;
+      const start = (page - 1) * plantasPerPage;
+      const end = start + plantasPerPage;
+      const plantasPagina = plantas.slice(start, end);
+      plantasPagina.forEach((planta, idx) => {
+        cont.innerHTML += `
+          <div class="col-12">
+            <div class="card planta-card shadow-sm planta-click" data-id="${planta.id_planta}">
+              ${planta.imagen ?
+                `<img src="${planta.imagen}" alt="${planta.nombre}">` :
+                `<div class="planta-img-placeholder"></div>`}
+              <div class="card-body">
+                <h5 class="card-title mb-0">${planta.nombre}</h5>
+                <p class="card-text">${planta.propiedades}</p>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+      // Agregar eventos click a las cards
+      document.querySelectorAll('.planta-click').forEach(card => {
+        card.addEventListener('click', function() {
+          const id = this.getAttribute('data-id');
+          mostrarRemediosYFuentes(id);
+        });
+      });
+      renderPlantasPagination(plantas.length, page);
+    }
+
+    function renderPlantasPagination(total, currentPage) {
+      const pagCont = document.getElementById('plantas-pagination');
+      if (!pagCont) return;
+      pagCont.innerHTML = '';
+      const totalPages = Math.ceil(total / plantasPerPage);
+      if (totalPages <= 1) return;
+      let html = '';
+      html += `<li class="page-item${currentPage === 1 ? ' disabled' : ''}"><a class="page-link" href="#" data-page="${currentPage - 1}">Anterior</a></li>`;
+      // Mostrar solo las primeras, últimas y cercanas a la actual
+      let pageList = [];
+      if (totalPages <= 8) {
+        for (let i = 1; i <= totalPages; i++) pageList.push(i);
+      } else {
+        pageList.push(1);
+        if (currentPage > 4) pageList.push('...');
+        for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) {
+          if (i !== 1 && i !== totalPages) pageList.push(i);
+        }
+        if (currentPage < totalPages - 3) pageList.push('...');
+        pageList.push(totalPages);
+      }
+      pageList.forEach(i => {
+        if (i === '...') {
+          html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+        } else {
+          html += `<li class="page-item${i === currentPage ? ' active' : ''}"><a class="page-link" href="#" data-page="${i}">${i}</a></li>`;
+        }
+      });
+      html += `<li class="page-item${currentPage === totalPages ? ' disabled' : ''}"><a class="page-link" href="#" data-page="${currentPage + 1}">Siguiente</a></li>`;
+      pagCont.innerHTML = html;
+      pagCont.querySelectorAll('a.page-link').forEach(link => {
+        link.addEventListener('click', function(e) {
+          e.preventDefault();
+          const page = parseInt(this.getAttribute('data-page'));
+          if (!isNaN(page) && page >= 1 && page <= totalPages) {
+            renderPlantas(plantasFiltradasGlobal, page);
+          }
+        });
+      });
+    }
+
+    // Buscador de plantas
+    document.addEventListener('DOMContentLoaded', function() {
+      const input = document.getElementById('buscador-plantas');
+      if (!input) return;
+      input.addEventListener('input', function() {
+        const texto = this.value.trim().toLowerCase();
+        let plantasFiltradas = GLOBAL_DATA.plantas.filter(p =>
+          (p.nombre && p.nombre.toLowerCase().includes(texto)) ||
+          (p.propiedades && p.propiedades.toLowerCase().includes(texto))
+        );
+        renderPlantas(plantasFiltradas, 1);
+      });
+    });
+
+    function mostrarRemediosYFuentes(idPlanta) {
+      const planta = GLOBAL_DATA.plantas.find(p => p.id_planta == idPlanta);
+      const remedios = GLOBAL_DATA.remedios.filter(r => r.id_planta == idPlanta);
+      const fuentesIds = remedios.map(r => r.id_fuente);
+      const fuentes = GLOBAL_DATA.fuentes.filter(f => fuentesIds.includes(f.id_fuente));
+
+      // Título del modal
+      document.getElementById('plantaModalLabel').textContent = planta?.nombre || 'Planta';
+
+      // Render detalles
+      let detallesHtml = '';
+      if (planta) {
+        detallesHtml += `<div class="d-flex gap-3 mb-3 align-items-start">`;
+        detallesHtml += planta.imagen ? `<img src="${planta.imagen}" alt="${planta.nombre}" style="width:200px;border-radius:0.8rem;object-fit:cover;">` : `<div style="width:200px;height:140px;background:#fff;border-radius:0.8rem;"></div>`;
+        detallesHtml += `<div><h4>${planta.nombre}</h4><p><strong>Propiedades:</strong> ${planta.propiedades}</p>`;
+        if (planta.precauciones) detallesHtml += `<p class="text-danger"><strong>Precauciones:</strong> ${planta.precauciones}</p>`;
+        detallesHtml += `</div></div>`;
+      } else {
+        detallesHtml = '<p>Información no disponible.</p>';
+      }
+      // Fuentes resumidas en detalles
+      if (fuentes.length) {
+        detallesHtml += '<h6>Fuentes</h6>';
+        fuentes.forEach(f => {
+          detallesHtml += `<p><strong>${f.nombre}</strong> — ${f.tipo_fuente || ''} ${f.contacto ? `(${f.contacto})` : ''}</p>`;
+        });
+      }
+      document.getElementById('modal-detalles').innerHTML = detallesHtml;
+
+      // Render fórmulas (remedios)
+      let formulasHtml = '';
+      if (remedios.length === 0) {
+        formulasHtml = '<p>No hay fórmulas registradas para esta planta.</p>';
+      } else {
+        remedios.forEach(r => {
+          formulasHtml += `
+            <div class="card remedio-card mb-3">
+              <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                  <h6 class="card-title mb-1">${r.titulo}</h6>
+                </div>
+                ${r.descripcion ? `<p class="mb-1">${r.descripcion}</p>` : ''}
+                <p class="mb-1"><strong>Ingredientes:</strong></p>
+                <ul class="mb-2">
+                  ${r.ingredientes ? r.ingredientes.split(',').map(i => `<li>${i.trim()}</li>`).join('') : '<li>No especificado</li>'}
+                </ul>
+                ${r.preparacion ? `<p class="mb-1"><strong>Preparación:</strong> ${r.preparacion}</p>` : ''}
+                ${r.frecuencia ? `<p class="mb-0"><strong>Frecuencia:</strong> ${r.frecuencia}</p>` : ''}
+              </div>
+            </div>
+          `;
+        });
+      }
+      document.getElementById('modal-formulas').innerHTML = formulasHtml;
+
+      // Abrir modal y activar pestaña Detalles
+      const modalEl = document.getElementById('plantaModal');
+      const modal = new bootstrap.Modal(modalEl);
+      const tabTrigger = modalEl.querySelector('#tab-detalles');
+      if (tabTrigger) new bootstrap.Tab(tabTrigger).show();
+      modal.show();
+        // Inicializar mapa cuando la pestaña Mapa sea mostrada (lazy init)
+        const tabMapaBtn = modalEl.querySelector('#tab-mapa');
+        if (tabMapaBtn) {
+          tabMapaBtn.addEventListener('shown.bs.tab', () => initMapa());
+        }
+    }
+
+      // Mapa: inicialización y marcadores (Cuenca)
+      let _mapInitialized = false;
+      let _mapInstance = null;
+      function initMapa() {
+        if (_mapInitialized) {
+          if (_mapInstance) _mapInstance.invalidateSize();
+          return;
+        }
+        const mapaDiv = document.getElementById('modal-mapa');
+        if (!mapaDiv) return;
+        // Centro aproximado de Cuenca, Ecuador
+        const cuencaCenter = [-2.90055, -79.00451];
+        _mapInstance = L.map('modal-mapa').setView(cuencaCenter, 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19,
+          attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(_mapInstance);
+
+        // Ejemplo de mercados ecológicos (coordenadas aproximadas)
+        const mercados = [
+          { name: 'Mercado Ecológico Central', coords: [-2.9005, -79.004] },
+          { name: 'Mercado Orgánico El Vergel', coords: [-2.9075, -79.001] },
+          { name: 'Mercado Verde Plaza', coords: [-2.8920, -78.995] }
+        ];
+        mercados.forEach(m => {
+          L.marker(m.coords).addTo(_mapInstance).bindPopup(`<strong>${m.name}</strong>`);
+        });
+        _mapInitialized = true;
+        setTimeout(() => { if (_mapInstance) _mapInstance.invalidateSize(); }, 300);
+      }
+
+    // Chat: mostrar modal con cards cuando llega id_plantas
+    let pendingChatPlantIds = null;
+    let pendingChatOutput = '';
+
+    function extractPlantIdsFromMessage(message) {
+      if (!message) return [];
+      const candidates = [
+        message,
+        message.id_plantas,
+        message.ids_plantas,
+        message.data?.id_plantas,
+        message.data?.ids_plantas,
+        message.additionalFields?.id_plantas,
+        message.metadata?.id_plantas
+      ];
+      for (const ids of candidates) {
+        if (Array.isArray(ids)) return ids;
+        if (ids && Array.isArray(ids.id_plantas)) return ids.id_plantas;
+        if (ids && Array.isArray(ids.ids_plantas)) return ids.ids_plantas;
+      }
+      if (typeof message.content === 'object' && message.content) {
+        if (Array.isArray(message.content.id_plantas)) return message.content.id_plantas;
+        if (Array.isArray(message.content.ids_plantas)) return message.content.ids_plantas;
+      }
+      if (typeof message.content === 'string') {
+        const trimmed = message.content.trim();
+        if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+          try {
+            const parsed = JSON.parse(trimmed);
+            if (Array.isArray(parsed?.id_plantas)) return parsed.id_plantas;
+            if (Array.isArray(parsed?.ids_plantas)) return parsed.ids_plantas;
+          } catch {
+            return [];
+          }
+        }
+      }
+      return [];
+    }
+
+    function extractOutputFromMessage(message) {
+      if (!message) return '';
+      if (typeof message.output === 'string') return message.output;
+      if (typeof message.data?.output === 'string') return message.data.output;
+      if (typeof message.metadata?.output === 'string') return message.metadata.output;
+      if (typeof message.content?.output === 'string') return message.content.output;
+      return '';
+    }
+
+    function getChatMessagesContainer() {
+      const webComponent = document.querySelector('n8n-chat');
+      if (webComponent && webComponent.shadowRoot) {
+        return webComponent.shadowRoot.querySelector('.chat-messages-list');
+      }
+      const chatRoot = document.querySelector('.n8n-chat') || document;
+      return chatRoot.querySelector('.chat-messages-list');
+    }
+
+    function ensureChatStyles(container) {
+      const root = container.getRootNode();
+      if (!(root instanceof ShadowRoot)) return;
+      if (root.querySelector('style[data-plantas-chat]')) return;
+      const style = document.createElement('style');
+      style.setAttribute('data-plantas-chat', 'true');
+      style.textContent = `
+        .plantas-chat-message { margin: 0.6rem 0; max-width: 100%; }
+        .plantas-chat-summary { font-size: 0.9rem; color: #516476; margin-bottom: 0.5rem; line-height: 1.45; word-break: break-word; }
+        .plantas-chat-cards { display: grid; grid-template-columns: 1fr; gap: 0.6rem; }
+        .plantas-chat-card { text-align: left; background: #fff; border: 1px solid #e7ddcf; border-radius: 0.8rem; padding: 0.65rem 0.85rem; width: 100%; max-width: 100%; box-shadow: 0 2px 8px rgba(12,33,66,0.08); color: #0C2142; transition: transform 0.15s ease, box-shadow 0.15s ease; overflow: hidden; }
+        .plantas-chat-card:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(12,33,66,0.08); }
+        .plantas-chat-card-title { font-weight: 600; font-size: 0.98rem; margin-bottom: 0.2rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .plantas-chat-card-meta { font-size: 0.88rem; color: #516476; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word; }
+      `;
+      root.appendChild(style);
+    }
+
+    function appendChatPlantCards(plantas, tries = 0) {
+      const container = getChatMessagesContainer();
+      if (!container) {
+        if (tries < 3) {
+          setTimeout(() => appendChatPlantCards(plantas, tries + 1), 300);
+        }
+        return;
+      }
+
+      ensureChatStyles(container);
+
+      const lastBotMessage = container.querySelector('.chat-message.chat-message-from-bot:last-of-type');
+      const contentEl = lastBotMessage?.querySelector('.chat-message-markdown') || lastBotMessage;
+
+      let target = contentEl;
+      if (!target) {
+        const messageEl = document.createElement('div');
+        messageEl.className = 'chat-message chat-message-from-bot plantas-chat-message';
+        const newContent = document.createElement('div');
+        newContent.className = 'chat-message-markdown';
+        messageEl.appendChild(newContent);
+        container.appendChild(messageEl);
+        target = newContent;
+      }
+
+      const cardsWrap = document.createElement('div');
+      cardsWrap.className = 'plantas-chat-cards';
+
+      plantas.forEach(planta => {
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'plantas-chat-card';
+        card.setAttribute('data-id', planta.id_planta);
+
+        const title = document.createElement('div');
+        title.className = 'plantas-chat-card-title';
+        title.textContent = planta.nombre || 'Planta';
+
+        const meta = document.createElement('div');
+        meta.className = 'plantas-chat-card-meta';
+        meta.textContent = planta.propiedades || 'Ver detalles';
+
+        card.appendChild(title);
+        card.appendChild(meta);
+        card.addEventListener('click', () => mostrarRemediosYFuentes(planta.id_planta));
+
+        cardsWrap.appendChild(card);
+      });
+
+      target.appendChild(cardsWrap);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function handleChatPlantIds(ids, outputText) {
+      if (!Array.isArray(ids) || ids.length === 0) return;
+      if (!GLOBAL_DATA?.plantas?.length) {
+        pendingChatPlantIds = ids;
+        pendingChatOutput = outputText || '';
+        return;
+      }
+      const normalizedIds = [...new Set(ids.map(id => String(id)))];
+      const plantas = GLOBAL_DATA.plantas.filter(p => normalizedIds.includes(String(p.id_planta)));
+      if (plantas.length) appendChatPlantCards(plantas);
+    }
+
+    function flushPendingChatPlantIds() {
+      if (pendingChatPlantIds) {
+        handleChatPlantIds(pendingChatPlantIds, pendingChatOutput);
+        pendingChatPlantIds = null;
+        pendingChatOutput = '';
+      }
+    }
+
+    const CHAT_WEBHOOK_URL = 'https://n8n-ideais.appx.ec/webhook/e5cde035-4161-444b-a688-23fcc021d562/chat';
+
+    createChat({
+      webhookUrl: CHAT_WEBHOOK_URL,
+      mode: 'window',
+      defaultLanguage: 'es',
+      showWelcomeScreen: true,
+      initialMessages: [
+        'Hola, soy tu agente de plantas medicinales.',
+        'Preguntame sobre usos, preparacion, beneficios o precauciones.'
+      ],
+      i18n: {
+        es: {
+          title: 'Hola',
+          subtitle: 'Consulta sobre plantas medicinales.',
+          footer: 'Agente de Plantas Medicinales',
+          getStarted: 'Nueva conversacion',
+          inputPlaceholder: 'Escribe tu pregunta sobre plantas medicinales...'
+        }
+      },
+      onMessage: (message) => {
+        const ids = extractPlantIdsFromMessage(message);
+        const outputText = extractOutputFromMessage(message);
+        handleChatPlantIds(ids, outputText);
+      }
+    });
+
+    // Interceptar respuestas fetch para capturar id_plantas (solo si vienen en JSON)
+    const originalFetch = window.fetch;
+    window.fetch = async (...args) => {
+      const res = await originalFetch(...args);
+      try {
+        res.clone().json().then(data => {
+          const ids = extractPlantIdsFromMessage(data);
+          const outputText = extractOutputFromMessage(data);
+          handleChatPlantIds(ids, outputText);
+        }).catch(() => {});
+      } catch {}
+      return res;
+    };
+
+    // Inicialización con cache
+    (function init() {
+      // 1. Mostrar datos cacheados si existen
+      const cached = getCachedData();
+      if (cached) {
+        GLOBAL_DATA = cached;
+        renderPlantas(cached.plantas || []);
+        flushPendingChatPlantIds();
+      }
+      // 2. Descargar la nueva versión y actualizar cache y vista
+      fetchData().then(data => {
+        setCachedData(data);
+        GLOBAL_DATA = data;
+        renderPlantas(data.plantas || []);
+        flushPendingChatPlantIds();
+      }).catch(() => {
+        if (!cached) {
+          document.body.innerHTML = '<div class="container py-5 text-center"><h2>No se pudieron cargar los datos.</h2></div>';
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
