@@ -284,3 +284,75 @@
       overflow: hidden;
       word-break: break-word;
     }
+
+    /* Contenedor principal */
+.alimentos-chat-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 600px;
+  margin: 20px auto;
+  padding: 20px;
+  background-color: #f8fafc;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+
+
+/* Tarjeta interactiva (Botón) */
+.alimentos-chat-card {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 18px;
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+  display: block;
+  transition: all 0.2s ease-in-out;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.03);
+  outline: none;
+}
+
+/* Efectos Hover y Focus para la tarjeta */
+.alimentos-chat-card:hover {
+  transform: translateY(-2px);
+  border-color: #bbf7d0; /* Borde verde claro al pasar el mouse */
+  background-color: #fbfdfb;
+  box-shadow: 0 6px 12px rgba(34, 197, 94, 0.08);
+}
+
+.alimentos-chat-card:active {
+  transform: translateY(0);
+}
+
+/* Título de la tarjeta */
+.alimentos-chat-card-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #0f172a;
+  margin-bottom: 4px;
+}
+
+/* Metadatos (Categoría y enlace) */
+.alimentos-chat-card-meta {
+  font-size: 0.85rem;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Animación sutil de entrada */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

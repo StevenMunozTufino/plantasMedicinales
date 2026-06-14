@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Catálogo de Alimentos y Nutrición Avanzado</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/@n8n/chat/dist/style.css" rel="stylesheet">
+  
+</head>
+<body>
+
+  <div class="container py-4">
+    <h1 class="mb-4 text-center fw-bold" style="color: var(--primary-color);">Catálogo de Alimentos</h1>
+    
+    <div id="alimentos-section">
+      <div class="mb-4">
+        <input type="text" id="buscador-alimentos" class="form-control form-control-lg shadow-sm" placeholder="Buscar alimento por nombre o categoría...">
+      </div>
+      <div class="row g-3" id="alimentos-list"></div>
+      <nav>
+        <ul class="pagination justify-content-end my-4" id="alimentos-pagination"></ul>
+      </nav>
+    </div>
+
+    <div class="modal fade" id="alimentoModal" tabindex="-1" aria-labelledby="alimentoModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+          <div class="modal-header text-white" style="background-color: var(--primary-color);">
+            <h5 class="modal-title fw-bold" id="alimentoModalLabel">Alimento</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+          </div>
+          <div class="modal-body">
+            
+            <ul class="nav nav-tabs mb-3" id="modalTabs" role="tablist">
+              <li class="nav-item" role="presentation">
+                <button class="nav-link active fw-semibold" id="tab-detalles" data-bs-toggle="tab" data-bs-target="#pane-detalles" type="button" role="tab">Detalles</button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link fw-semibold" id="tab-nutricion" data-bs-toggle="tab" data-bs-target="#pane-nutricion" type="button" role="tab">Tabla Nutricional</button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link fw-semibold" id="tab-grafico" data-bs-toggle="tab" data-bs-target="#pane-grafico" type="button" role="tab">Análisis Visual Avanzado 📊</button>
+              </li>
+              <li class="nav-item" role="presentation">
+                <button class="nav-link fw-semibold" id="tab-mapa" data-bs-toggle="tab" data-bs-target="#pane-mapa" type="button" role="tab">Zonas de Origen</button>
+              </li>
+            </ul>
+            
+            <div class="tab-content">
+              <div class="tab-pane fade show active" id="pane-detalles" role="tabpanel">
+                <div id="modal-detalles"></div>
+              </div>
+              
+              <div class="tab-pane fade" id="pane-nutricion" role="tabpanel">
+                <div id="modal-nutricion"></div>
+              </div>
+              
+              <div class="tab-pane fade" id="pane-grafico" role="tabpanel">
+                <div id="modal-grafico" class="py-2">
+                  
+                  <div class="row g-3 mb-4 text-center" id="semaforo-nutricional"></div>
+                  
+                  <div class="row g-4">
+                    <div class="col-md-6 text-center">
+                      <div class="card p-3 shadow-sm h-100">
+                        <h6 class="fw-bold text-secondary">Distribución de Macronutrientes (g)</h6>
+                        <div style="height: 260px; position: relative;">
+                          <canvas id="chartMacros"></canvas>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div class="col-md-6 text-center">
+                      <div class="card p-3 shadow-sm h-100">
+                        <h6 class="fw-bold text-secondary">Estructura de Carbohidratos (g)</h6>
+                        <div style="height: 260px; position: relative;">
+                          <canvas id="chartCarbos"></canvas>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="col-md-6 text-center">
+                      <div class="card p-3 shadow-sm h-100">
+                        <h6 class="fw-bold text-secondary">Balance de Minerales Esenciales (mg)</h6>
+                        <div style="height: 260px; position: relative;">
+                          <canvas id="chartMinerales"></canvas>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="col-md-6 text-center">
+                      <div class="card p-3 shadow-sm h-100">
+                        <h6 class="fw-bold text-secondary">Perfil de Vitaminas Coexistentes (mg/mcg)</h6>
+                        <div style="height: 260px; position: relative;">
+                          <canvas id="chartVitaminas"></canvas>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+              
+              <div class="tab-pane fade" id="pane-mapa" role="tabpanel">
+                <div id="modal-mapa" class="rounded shadow-sm" style="height:450px;"></div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  
+  <script type="module">
+    import { createChat } from "https://cdn.jsdelivr.net/npm/@n8n/chat/dist/chat.bundle.es.js";
+    
+    const DATA_URL = 'https://script.google.com/macros/s/AKfycbxaPDOAWnVgYoqi8oMwgyiGE4TESmj2sZD37xJtg8ghR5P9hS7G12Ncfwmik5LdO5qv/exec';
+    const CHAT_WEBHOOK_URL = 'https://n8n-ideais.appx.ec/webhook/a1226884-d5d5-4a8a-8cec-86ef7ff44cbb/chat';
+
+    // Manejo de Cache local
+    function getCachedData() {
+      const cached = localStorage.getItem('alimentosData');
+      if (!cached) return null;
+      try { return JSON.parse(cached); } catch { return null; }
+    }
+
+    function setCachedData(data) {
+      localStorage.setItem('alimentosData', JSON.stringify(data));
+    }
+
+    async function fetchData() {
+      const res = await fetch(DATA_URL);
+      return await res.json();
+    }
+
+    // Estado de datos global
+    let GLOBAL_DATA = { alimentos: [], perfiles_nutricionales: [] };
+    let alimentosCurrentPage = 1;
+    const alimentosPerPage = 6;
+    let alimentosFiltradosGlobal = [];
+    
+    // Instancias de Chart.js
+    let chartMacrosInstance = null;
+    let chartCarbosInstance = null;
+    let chartMineralesInstance = null;
+    let chartVitaminasInstance = null;
+
+    // Renderizado de la Grid de Alimentos principal
+    function renderAlimentos(alimentos, page = 1) {
+      const cont = document.getElementById('alimentos-list');
+      cont.innerHTML = '';
+      if (!alimentos) alimentos = [];
+      alimentosFiltradosGlobal = alimentos;
+      alimentosCurrentPage = page;
+      
+      const start = (page - 1) * alimentosPerPage;
+      const end = start + alimentosPerPage;
+      const alimentosPagina = alimentos.slice(start, end);
+      
+      alimentosPagina.forEach((alimento) => {
+        cont.innerHTML += `
+          <div class="col-12 col-md-6 col-lg-4">
+            <div class="card h-100 shadow-sm alimento-card alimento-click" data-id="${alimento.id}" style="cursor:pointer;">
+              ${alimento.imagen ? 
+                `<img src="${alimento.imagen}" class="card-img-top" alt="${alimento.nombre}" style="height:190px; object-fit:cover;">` : 
+                `<div class="bg-secondary-subtle d-flex align-items-center justify-content-center" style="height:190px;"><span class="text-muted">${alimento.categoria}</span></div>`}
+              <div class="card-body">
+                <span class="badge bg-primary mb-2">${alimento.categoria}</span>
+                <h5 class="card-title fw-bold text-dark">${alimento.nombre}</h5>
+                <p class="card-text text-muted text-truncate">${alimento.descripcion_nutricional || 'Ver desglose analítico completo.'}</p>
+                <small class="text-muted d-block mt-2">📍 Origen: ${alimento.origen || 'No especificado'}</small>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+
+      document.querySelectorAll('.alimento-click').forEach(card => {
+        card.addEventListener('click', function() {
+          const id = this.getAttribute('data-id');
+          mostrarDetallesYNutricion(id);
+        });
+      });
+      renderAlimentosPagination(alimentos.length, page);
+    }
+
+    function renderAlimentosPagination(total, currentPage) {
+      const pagCont = document.getElementById('alimentos-pagination');
+      if (!pagCont) return;
+      pagCont.innerHTML = '';
+      const totalPages = Math.ceil(total / alimentosPerPage);
+      if (totalPages <= 1) return;
+      
+      let html = `<li class="page-item${currentPage === 1 ? ' disabled' : ''}"><a class="page-link" href="#" data-page="${currentPage - 1}">Anterior</a></li>`;
+      let pageList = [];
+      if (totalPages <= 8) {
+        for (let i = 1; i <= totalPages; i++) pageList.push(i);
+      } else {
+        pageList.push(1);
+        if (currentPage > 4) pageList.push('...');
+        for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) {
+          if (i !== 1 && i !== totalPages) pageList.push(i);
+        }
+        if (currentPage < totalPages - 3) pageList.push('...');
+        pageList.push(totalPages);
+      }
+      
+      pageList.forEach(i => {
+        if (i === '...') {
+          html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+        } else {
+          html += `<li class="page-item${i === currentPage ? ' active' : ''}"><a class="page-link" href="#" data-page="${i}">${i}</a></li>`;
+        }
+      });
+      html += `<li class="page-item${currentPage === totalPages ? ' disabled' : ''}"><a class="page-link" href="#" data-page="${currentPage + 1}">Siguiente</a></li>`;
+      pagCont.innerHTML = html;
+      
+      pagCont.querySelectorAll('a.page-link').forEach(link => {
+        link.addEventListener('click', function(e) {
+          e.preventDefault();
+          const page = parseInt(this.getAttribute('data-page'));
+          if (!isNaN(page) && page >= 1 && page <= totalPages) {
+            renderAlimentos(alimentosFiltradosGlobal, page);
+          }
+        });
+      });
+    }
+
+    // Buscador local interactivo
+    document.addEventListener('DOMContentLoaded', function() {
+      const input = document.getElementById('buscador-alimentos');
+      if (!input) return;
+      input.addEventListener('input', function() {
+        const texto = this.value.trim().toLowerCase();
+        let filtered = GLOBAL_DATA.alimentos.filter(a =>
+          (a.nombre && a.nombre.toLowerCase().includes(texto)) ||
+          (a.categoria && a.categoria.toLowerCase().includes(texto))
+        );
+        renderAlimentos(filtered, 1);
+      });
+    });
+
+    // Renderizador de Gráficos del Dashboard Nutricional
+    function renderChartsYComponentesVisuales(perfil) {
+      if (chartMacrosInstance) chartMacrosInstance.destroy();
+      if (chartCarbosInstance) chartCarbosInstance.destroy();
+      if (chartMineralesInstance) chartMineralesInstance.destroy();
+      if (chartVitaminasInstance) chartVitaminasInstance.destroy();
+
+      if (!perfil) return;
+
+      const semaforoCont = document.getElementById('semaforo-nutricional');
+      const calColor = perfil.calorias_kcal > 150 ? 'danger' : (perfil.calorias_kcal > 70 ? 'warning' : 'success');
+      const azucarColor = perfil.azucares_g > 10 ? 'danger' : (perfil.azucares_g > 5 ? 'warning' : 'success');
+      const fibraColor = perfil.fibra_g > 3 ? 'success' : (perfil.fibra_g > 1.5 ? 'warning' : 'secondary');
+
+      semaforoCont.innerHTML = `
+        <div class="col-6 col-md-3"><div class="p-3 border rounded bg-white shadow-sm"><span class="fs-3 fw-bold text-${calColor}">🔥 ${perfil.calorias_kcal}</span><br><small class="text-muted fw-semibold">Calorías (kcal)</small></div></div>
+        <div class="col-6 col-md-3"><div class="p-3 border rounded bg-white shadow-sm"><span class="fs-3 fw-bold text-success">💪 ${perfil.proteina_g}g</span><br><small class="text-muted fw-semibold">Proteínas</small></div></div>
+        <div class="col-6 col-md-3"><div class="p-3 border rounded bg-white shadow-sm"><span class="fs-3 fw-bold text-${azucarColor}">🍭 ${perfil.azucares_g}g</span><br><small class="text-muted fw-semibold">Azúcares</small></div></div>
+        <div class="col-6 col-md-3"><div class="p-3 border rounded bg-white shadow-sm"><span class="fs-3 fw-bold text-${fibraColor}">🌾 ${perfil.fibra_g}g</span><br><small class="text-muted fw-semibold">Fibra Total</small></div></div>
+      `;
+
+      const ctxMacros = document.getElementById('chartMacros').getContext('2d');
+      chartMacrosInstance = new Chart(ctxMacros, {
+        type: 'doughnut',
+        data: {
+          labels: ['Proteínas', 'Grasas', 'Carbohidratos'],
+          datasets: [{
+            data: [perfil.proteina_g, perfil.grasas_g, perfil.carbohidratos_g],
+            backgroundColor: ['#2ecc71', '#e74c3c', '#f1c40f']
+          }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+      });
+
+      const ctxCarbos = document.getElementById('chartCarbos').getContext('2d');
+      chartCarbosInstance = new Chart(ctxCarbos, {
+        type: 'bar',
+        data: {
+          labels: ['Fibra', 'Azúcares Complejos', 'Azúcares Simples'],
+          datasets: [{
+            data: [perfil.fibra_g, Math.max(0, perfil.carbohidratos_g - perfil.azucares_g), perfil.azucares_g],
+            backgroundColor: ['#27ae60', '#3498db', '#9b59b6']
+          }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+      });
+
+      const ctxMinerales = document.getElementById('chartMinerales').getContext('2d');
+      chartMineralesInstance = new Chart(ctxMinerales, {
+        type: 'radar',
+        data: {
+          labels: ['Calcio (mg)', 'Hierro (mg)', 'Potasio (mg)', 'Magnesio (mg)', 'Zinc (mg)'],
+          datasets: [{
+            label: 'Minerales',
+            data: [
+              perfil["minerales.calcio_mg"] || 0,
+              perfil["minerales.hierro_mg"] || 0,
+              perfil["minerales.potasio_mg"] || 0,
+              perfil["minerales.magnesio_mg"] || 0,
+              perfil["minerales.zinc_mg"] || 0
+            ],
+            backgroundColor: 'rgba(52, 152, 219, 0.2)',
+            borderColor: '#3498db',
+            pointBackgroundColor: '#2980b9',
+            pointBorderColor: '#fff'
+          }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { r: { suggestMin: 0 } } }
+      });
+
+      const ctxVitaminas = document.getElementById('chartVitaminas').getContext('2d');
+      chartVitaminasInstance = new Chart(ctxVitaminas, {
+        type: 'radar',
+        data: {
+          labels: ['Vit A (mcg)', 'Vit C (mg)', 'Vit B1 (mg)', 'Vit B2 (mg)', 'Vit B3 (mg)', 'Vit D (mcg)'],
+          datasets: [{
+            label: 'Vitaminas',
+            data: [
+              perfil["vitaminas.vitamina_a_mcg"] || 0,
+              perfil["vitaminas.vitamina_c_mg"] || 0,
+              perfil["vitaminas.vitamina_b1_mg"] || 0,
+              perfil["vitaminas.vitamina_b2_mg"] || 0,
+              perfil["vitaminas.vitamina_b3_mg"] || 0,
+              perfil["vitaminas.vitamina_d_mcg"] || 0
+            ],
+            backgroundColor: 'rgba(155, 89, 182, 0.2)',
+            borderColor: '#9b59b6',
+            pointBackgroundColor: '#8e44ad',
+            pointBorderColor: '#fff'
+          }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { r: { suggestMin: 0 } } }
+      });
+    }
+
+    function mostrarDetallesYNutricion(idAlimento) {
+      const alimento = GLOBAL_DATA.alimentos.find(a => a.id == idAlimento);
+      const perfil = GLOBAL_DATA.perfiles_nutricionales.find(p => p.id_alimento == idAlimento);
+
+      document.getElementById('alimentoModalLabel').textContent = alimento?.nombre || 'Información General';
+
+      let detallesHtml = '';
+      if (alimento) {
+        detallesHtml += `
+          <div class="row p-2">
+            <div class="col-md-4 mb-3 text-center">
+              ${alimento.imagen ? `<img src="${alimento.imagen}" class="img-fluid rounded shadow" alt="${alimento.nombre}" style="max-height: 250px; object-fit: cover;">` : `<div class="bg-secondary-subtle rounded d-flex align-items-center justify-content-center" style="height:200px;">Sin Imagen</div>`}
+            </div>
+            <div class="col-md-8">
+              <h3 class="fw-bold text-dark mb-2">${alimento.nombre}</h3>
+              <p><strong>Categoría:</strong> <span class="badge bg-secondary px-3 py-2">${alimento.categoria}</span></p>
+              <p><strong>Ubicación/Origen:</strong> ${alimento.origen || 'No especificado'}</p>
+              <p><strong>Descripción Analizada:</strong> ${alimento.descripcion_nutricional || 'No especificada'}</p>
+              ${alimento.limitaciones_nutricionales ? `<div class="alert alert-warning mt-3"><strong>⚠️ Restricciones / Alergias:</strong> ${alimento.limitaciones_nutricionales}</div>` : ''}
+            </div>
+          </div>`;
+      }
+      document.getElementById('modal-detalles').innerHTML = detallesHtml;
+
+      let nutricionHtml = '';
+      if (perfil) {
+        nutricionHtml += `
+          <div class="table-responsive">
+            <table class="table table-striped table-hover align-middle m-0 border">
+              <thead class="table-dark">
+                <tr><th>Componente</th><th>Cantidad (por cada 100g)</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><strong>Valor Energético</strong></td><td><span class="badge bg-danger">${perfil.calorias_kcal} kcal</span></td></tr>
+                <tr><td>Proteínas</td><td>${perfil.proteina_g} g</td></tr>
+                <tr><td>Grasas Totales</td><td>${perfil.grasas_g} g</td></tr>
+                <tr><td>Carbohidratos Disponibles</td><td>${perfil.carbohidratos_g} g</td></tr>
+                <tr><td>Fibra Alimentaria</td><td>${perfil.fibra_g} g</td></tr>
+                <tr><td>Azúcares</td><td>${perfil.azucares_g} g</td></tr>
+                <tr class="table-secondary fw-bold"><td colspan="2">Vitaminas</td></tr>
+                <tr><td>Vitamina A</td><td>${perfil["vitaminas.vitamina_a_mcg"] || 0} mcg</td></tr>
+                <tr><td>Vitamina C</td><td>${perfil["vitaminas.vitamina_c_mg"] || 0} mg</td></tr>
+                <tr><td>Vitamina B1 (Tiamina)</td><td>${perfil["vitaminas.vitamina_b1_mg"] || 0} mg</td></tr>
+                <tr><td>Vitamina B2 (Riboflavina)</td><td>${perfil["vitaminas.vitamina_b2_mg"] || 0} mg</td></tr>
+                <tr><td>Vitamina B3 (Niacina)</td><td>${perfil["vitaminas.vitamina_b3_mg"] || 0} mg</td></tr>
+                <tr><td>Vitamina D</td><td>${perfil["vitaminas.vitamina_d_mcg"] || 0} mcg</td></tr>
+                <tr class="table-secondary fw-bold"><td colspan="2">Minerales</td></tr>
+                <tr><td>Calcio</td><td>${perfil["minerales.calcio_mg"] || 0} mg</td></tr>
+                <tr><td>Hierro</td><td>${perfil["minerales.hierro_mg"] || 0} mg</td></tr>
+                <tr><td>Potasio</td><td>${perfil["minerales.potasio_mg"] || 0} mg</td></tr>
+                <tr><td>Magnesio</td><td>${perfil["minerales.magnesio_mg"] || 0} mg</td></tr>
+                <tr><td>Zinc</td><td>${perfil["minerales.zinc_mg"] || 0} mg</td></tr>
+              </tbody>
+            </table>
+          </div>`;
+      } else {
+        nutricionHtml = '<div class="alert alert-info">Desglose nutricional no disponible para este elemento.</div>';
+      }
+      document.getElementById('modal-nutricion').innerHTML = nutricionHtml;
+
+      const modalEl = document.getElementById('alimentoModal');
+      const modal = new bootstrap.Modal(modalEl);
+      const tabTrigger = modalEl.querySelector('#tab-detalles');
+      if (tabTrigger) new bootstrap.Tab(tabTrigger).show();
+      modal.show();
+
+      // Lazy Loading de Componentes Visuales Interactivos
+      const tabGraficoBtn = modalEl.querySelector('#tab-grafico');
+      if (tabGraficoBtn) {
+        tabGraficoBtn.addEventListener('shown.bs.tab', () => renderChartsYComponentesVisuales(perfil));
+      }
+
+      const tabMapaBtn = modalEl.querySelector('#tab-mapa');
+      if (tabMapaBtn) {
+        tabMapaBtn.addEventListener('shown.bs.tab', () => initMapa(alimento?.origen));
+      }
+    }
+
+    let _mapInitialized = false;
+    let _mapInstance = null;
+    function initMapa(origenText = "") {
+      if (_mapInitialized) {
+        if (_mapInstance) _mapInstance.invalidateSize();
+        return;
+      }
+      const mapaDiv = document.getElementById('modal-mapa');
+      if (!mapaDiv) return;
+
+      const defaultCenter = [-2.90055, -79.00451]; 
+      _mapInstance = L.map('modal-mapa').setView(defaultCenter, 11);
+      
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap'
+      }).addTo(_mapInstance);
+
+      L.marker([-2.90055, -79.00451]).addTo(_mapInstance)
+        .bindPopup(`<strong>Distribución / Cultivo Principal:</strong><br>${origenText || 'Zonas locales de producción.'}`)
+        .openPopup();
+      
+      _mapInitialized = true;
+      setTimeout(() => { if (_mapInstance) _mapInstance.invalidateSize(); }, 300);
+    }
+
+    // --- ARQUITECTURA AVANZADA DE EXTRACCIÓN Y PARSEO DEL CHAT (SHADOW DOM INJECTOR) ---
+    let pendingChatItems = null;
+    let pendingChatOutput = '';
+
+    function normalizeAlimentoItems(rawItems) {
+      if (!Array.isArray(rawItems)) return [];
+      return rawItems.map(item => {
+        if (item && typeof item === 'object') {
+          const id = item.id_planta ?? item.id; 
+          if (id == null) return null;
+          return {
+            id_alimento: id,
+            output: typeof item.output === 'string' ? item.output : ''
+          };
+        }
+        if (item == null) return null;
+        return { id_alimento: item, output: '' };
+      }).filter(Boolean);
+    }
+
+    function extractAlimentoItemsFromMessage(message) {
+      if (!message) return [];
+      const candidates = [
+        message,
+        message.id_plantas,
+        message.ids_plantas,
+        message.data?.id_plantas,
+        message.data?.ids_plantas,
+        message.additionalFields?.id_plantas,
+        message.metadata?.id_plantas
+      ];
+      for (const ids of candidates) {
+        const normalized = normalizeAlimentoItems(ids);
+        if (normalized.length) return normalized;
+        if (ids && Array.isArray(ids.id_plantas)) return normalizeAlimentoItems(ids.id_plantas);
+        if (ids && Array.isArray(ids.ids_plantas)) return normalizeAlimentoItems(ids.ids_plantas);
+      }
+      if (typeof message.content === 'object' && message.content) {
+        if (Array.isArray(message.content.id_plantas)) return normalizeAlimentoItems(message.content.id_plantas);
+        if (Array.isArray(message.content.ids_plantas)) return normalizeAlimentoItems(message.content.ids_plantas);
+      }
+      if (typeof message.content === 'string') {
+        const trimmed = message.content.trim();
+        if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+          try {
+            const parsed = JSON.parse(trimmed);
+            if (Array.isArray(parsed?.id_plantas)) return normalizeAlimentoItems(parsed.id_plantas);
+            if (Array.isArray(parsed?.ids_plantas)) return normalizeAlimentoItems(parsed.ids_plantas);
+          } catch {
+            return [];
+          }
+        }
+      }
+      return [];
+    }
+
+    function extractOutputFromMessage(message) {
+      if (!message) return '';
+      if (typeof message.output === 'string') return message.output;
+      if (typeof message.data?.output === 'string') return message.data.output;
+      if (typeof message.metadata?.output === 'string') return message.metadata.output;
+      if (typeof message.content?.output === 'string') return message.content.output;
+      return '';
+    }
+
+    function getChatMessagesContainer() {
+      const webComponent = document.querySelector('n8n-chat');
+      if (webComponent && webComponent.shadowRoot) {
+        return webComponent.shadowRoot.querySelector('.chat-messages-list');
+      }
+      const chatRoot = document.querySelector('.n8n-chat') || document;
+      return chatRoot.querySelector('.chat-messages-list');
+    }
+
+    function ensureChatStyles(container) {
+      const root = container.getRootNode();
+      if (!(root instanceof ShadowRoot)) return;
+      if (root.querySelector('style[data-alimentos-chat]')) return;
+      const style = document.createElement('style');
+      style.setAttribute('data-alimentos-chat', 'true');
+      style.textContent = `
+        .alimentos-chat-cards { display: grid; grid-template-columns: 1fr; gap: 0.6rem; margin-top: 0.5rem; }
+        .alimentos-chat-output { font-size: 0.93rem; color: #333; margin: 0.2rem 0 0.4rem; line-height: 1.5; word-break: break-word; }
+        .alimentos-chat-card { text-align: left; background: #fff; border: 1px solid #d3e0ea; border-radius: 0.8rem; padding: 0.65rem 0.85rem; width: 100%; box-shadow: 0 2px 8px rgba(12,33,66,0.08); color: #0C2142; transition: transform 0.15s ease, box-shadow 0.15s ease; cursor: pointer; }
+        .alimentos-chat-card:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(12,33,66,0.12); border-color: #0C2142; }
+        .alimentos-chat-card-title { font-weight: 700; font-size: 0.98rem; color: #0C2142; margin-bottom: 0.1rem; }
+        .alimentos-chat-card-meta { font-size: 0.88rem; color: #516476; }
+      `;
+      root.appendChild(style);
+    }
+
+    function appendChatAlimentoCards(items, tries = 0) {
+      const container = getChatMessagesContainer();
+      if (!container) {
+        if (tries < 3) {
+          setTimeout(() => appendChatAlimentoCards(items, tries + 1), 300);
+        }
+        return;
+      }
+
+      ensureChatStyles(container);
+
+      const lastBotMessage = container.querySelector('.chat-message.chat-message-from-bot:last-of-type');
+      const contentEl = lastBotMessage?.querySelector('.chat-message-markdown') || lastBotMessage;
+
+      let target = contentEl;
+      if (!target) {
+        const messageEl = document.createElement('div');
+        messageEl.className = 'chat-message chat-message-from-bot';
+        const newContent = document.createElement('div');
+        newContent.className = 'chat-message-markdown';
+        messageEl.appendChild(newContent);
+        container.appendChild(messageEl);
+        target = newContent;
+      }
+
+      const cardsWrap = document.createElement('div');
+      cardsWrap.className = 'alimentos-chat-cards';
+
+      const alimentoMap = new Map((GLOBAL_DATA?.alimentos || []).map(a => [String(a.id), a]));
+      
+      items.forEach(item => {
+        const id = String(item.id_alimento);
+        const alimento = alimentoMap.get(id);
+        
+        if (item.output) {
+          const output = document.createElement('div');
+          output.className = 'alimentos-chat-output';
+          output.textContent = item.output;
+          cardsWrap.appendChild(output);
+        }
+
+        if (alimento) {
+          const card = document.createElement('button');
+          card.type = 'button';
+          card.className = 'alimentos-chat-card';
+
+          const title = document.createElement('div');
+          title.className = 'alimentos-chat-card-title';
+          title.textContent = alimento.nombre || 'Alimento';
+
+          const meta = document.createElement('div');
+          meta.className = 'alimentos-chat-card-meta';
+          meta.textContent = `Categoría: ${alimento.categoria || 'General'} | Ver análisis completo 📊`;
+
+          card.appendChild(title);
+          card.appendChild(meta);
+          
+          card.addEventListener('click', () => {
+            mostrarDetallesYNutricion(alimento.id);
+          });
+
+          cardsWrap.appendChild(card);
+        }
+      });
+
+      target.appendChild(cardsWrap);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function handleChatAlimentoItems(items, outputText) {
+      if (!Array.isArray(items) || items.length === 0) return;
+      const hasItemOutput = items.some(item => item.output);
+      if (!hasItemOutput && outputText) {
+        items = items.map((item, idx) => idx === 0 ? { ...item, output: outputText } : item);
+      }
+      if (!GLOBAL_DATA?.alimentos?.length) {
+        pendingChatItems = items;
+        pendingChatOutput = outputText || '';
+        return;
+      }
+      const normalizedItems = items
+        .map(item => ({
+          id_alimento: item.id_alimento,
+          output: item.output || ''
+        }))
+        .filter(item => item.id_alimento != null);
+      if (normalizedItems.length) appendChatAlimentoCards(normalizedItems);
+    }
+
+    function flushPendingChatAlimentoIds() {
+      if (pendingChatItems) {
+        handleChatAlimentoItems(pendingChatItems, pendingChatOutput);
+        pendingChatItems = null;
+        pendingChatOutput = '';
+      }
+    }
+
+    // Inicialización del Widget de Chat de n8n
+    createChat({
+      webhookUrl: CHAT_WEBHOOK_URL,
+      mode: 'window',
+      defaultLanguage: 'es',
+      showWelcomeScreen: true,
+      initialMessages: [
+        '¡Hola! Soy tu asistente de analítica nutricional.',
+        '¿Qué alimento o ingrediente deseas que analicemos u ordenemos gráficamente hoy?'
+      ],
+      i18n: {
+        es: {
+          title: '🥗 NutriAgente Analítico',
+          subtitle: 'Consulta sobre alimentos',
+          footer: 'Agente de análisis nutricional avanzado',
+          getStarted: 'Nueva conversacion',
+          inputPlaceholder: 'Escribe tu pregunta sobre alimentos...'
+        }
+      },
+      onMessage: (message) => {
+        const items = extractAlimentoItemsFromMessage(message);
+        const outputText = extractOutputFromMessage(message);
+        handleChatAlimentoItems(items, outputText);
+      }
+    });
+
+    // Interceptor Global Fetch para capturas instantáneas de streams o payloads JSON encubiertos
+    const originalFetch = window.fetch;
+    window.fetch = async (...args) => {
+      const res = await originalFetch(...args);
+      try {
+        res.clone().json().then(data => {
+            const items = extractAlimentoItemsFromMessage(data);
+            const outputText = extractOutputFromMessage(data);
+            handleChatAlimentoItems(items, outputText);
+        }).catch(() => {});
+      } catch {}
+      return res;
+    };
+
+    // --- INICIALIZADOR DE LA APP (ORQUESTADOR CON ORDEN DE PRELACIÓN) ---
+    (function init() {
+      const cached = getCachedData();
+      if (cached) {
+        GLOBAL_DATA = cached;
+        renderAlimentos(cached.alimentos || []);
+        flushPendingChatAlimentoIds();
+      }
+      fetchData().then(data => {
+        setCachedData(data);
+        GLOBAL_DATA = data;
+        renderAlimentos(data.alimentos || []);
+        flushPendingChatAlimentoIds();
+      }).catch(() => {
+        if (!cached) {
+          document.body.innerHTML = '<div class="container py-5 text-center"><h2>No se pudieron sincronizar los datos de nutrición.</h2></div>';
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
