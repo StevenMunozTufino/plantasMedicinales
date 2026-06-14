@@ -169,10 +169,8 @@
         cont.innerHTML += `
           <div class="col-12 col-md-6 col-lg-4">
             <div class="card h-100 shadow-sm alimento-card alimento-click" data-id="${alimento.id}" style="cursor:pointer;">
-              ${alimento.imagen ? 
-                `<img src="${alimento.imagen}" class="card-img-top" alt="${alimento.nombre}" style="height:190px; object-fit:cover;">` : 
-                `<div class="bg-secondary-subtle d-flex align-items-center justify-content-center" style="height:190px;"><span class="text-muted">${alimento.categoria}</span></div>`}
-              <div class="card-body">
+  <img src="${alimento.imagen || 'imagen.png'}" class="card-img-top" alt="${alimento.nombre}" style="height:190px; object-fit:cover;">
+  <div class="card-body">
                 <span class="badge bg-primary mb-2">${alimento.categoria}</span>
                 <h5 class="card-title fw-bold text-dark">${alimento.nombre}</h5>
                 <p class="card-text text-muted text-truncate">${alimento.descripcion_nutricional || 'Ver desglose analítico completo.'}</p>
@@ -353,10 +351,10 @@
       if (alimento) {
         detallesHtml += `
           <div class="row p-2">
-            <div class="col-md-4 mb-3 text-center">
-              ${alimento.imagen ? `<img src="${alimento.imagen}" class="img-fluid rounded shadow" alt="${alimento.nombre}" style="max-height: 250px; object-fit: cover;">` : `<div class="bg-secondary-subtle rounded d-flex align-items-center justify-content-center" style="height:200px;">Sin Imagen</div>`}
-            </div>
-            <div class="col-md-8">
+  <div class="col-md-4 mb-3 text-center">
+    <img src="${alimento.imagen || 'imagen.png'}" class="img-fluid rounded shadow" alt="${alimento.nombre}" style="max-height: 250px; object-fit: cover;">
+  </div>
+  <div class="col-md-8">
               <h3 class="fw-bold text-dark mb-2">${alimento.nombre}</h3>
               <p><strong>Categoría:</strong> <span class="badge bg-secondary px-3 py-2">${alimento.categoria}</span></p>
               <p><strong>Ubicación/Origen:</strong> ${alimento.origen || 'No especificado'}</p>
